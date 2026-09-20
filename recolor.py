@@ -24,6 +24,7 @@ whether it's run from a git checkout or from an installed
 lives outside that directory, in ~/.local/state, so `omarchy plugin update`
 (which re-syncs the plugin's own folder from git) never touches it.
 """
+import fcntl
 import json
 import os
 import shutil
@@ -93,48 +94,57 @@ def main():
     # an `omarchy plugin update` mid-run shouldn't race a half-written
     # render.json, and the plugin directory should stay pristine anyway.
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    render_path = STATE_DIR / "render.json"
-    if not render_path.exists():
-        shutil.copy(PLUGIN_DIR / "config/render.json", render_path)
-    render = json.loads(render_path.read_text())
-    render[target]["colors"][0]["replace"] = body
-    render[target]["colors"][1]["replace"] = accent
-    render[target]["colors"][2]["replace"] = watch
-    render_path.write_text(json.dumps(render, indent=2))
+    # The theme-set hook, the post-boot hook, and the shell service can all
+    # fire within the same second at login. Serialize them: they share the
+    # scratch build dir and the install dir, and each run starts by wiping
+    # both. A full build is ~0.2s, so the loser just redoes the same work.
+    with (STATE_DIR / ".lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        render_path = STATE_DIR / "render.json"
+        if not render_path.exists():
+            shutil.copy(PLUGIN_DIR / "config/render.json", render_path)
+        render = json.loads(render_path.read_text())
+        render[target]["colors"][0]["replace"] = body
+        render[target]["colors"][1]["replace"] = accent
+        render[target]["colors"][2]["replace"] = watch
+        render_path.write_text(json.dumps(render, indent=2))
 
-    build_dir = STATE_DIR / "build"
-    shutil.rmtree(build_dir, ignore_errors=True)
-    build_dir.mkdir(parents=True)
-    (build_dir / "src").symlink_to(PLUGIN_DIR / "src")
-    (build_dir / "svg").symlink_to(PLUGIN_DIR / "svg")
-    (build_dir / "config").mkdir()
-    (build_dir / "config/render.json").symlink_to(render_path)
-    (build_dir / "config/build.toml").symlink_to(PLUGIN_DIR / "config/build.toml")
-    (build_dir / "config/build.right.toml").symlink_to(PLUGIN_DIR / "config/build.right.toml")
+        build_dir = STATE_DIR / "build"
+        shutil.rmtree(build_dir, ignore_errors=True)
+        build_dir.mkdir(parents=True)
+        (build_dir / "src").symlink_to(PLUGIN_DIR / "src")
+        (build_dir / "svg").symlink_to(PLUGIN_DIR / "svg")
+        (build_dir / "config").mkdir()
+        (build_dir / "config/render.json").symlink_to(render_path)
+        (build_dir / "config/build.toml").symlink_to(PLUGIN_DIR / "config/build.toml")
+        (build_dir / "config/build.right.toml").symlink_to(PLUGIN_DIR / "config/build.right.toml")
 
-    # cursor_utils.py resolves its own source paths relative to cwd, and
-    # mixes those with --out-dir internally (Path.relative_to), so passing
-    # an absolute --out-dir while cwd is build_dir raises "different
-    # anchors". Keep it relative, matched to cwd=build_dir, to avoid that.
-    subprocess.run(
-        ["./src/cursor_utils.py", "--hypr", "--theme", target,
-         "--out-dir", "out", "--log-level", "error"],
-        cwd=build_dir, check=True,
-    )
+        # cursor_utils.py resolves its own source paths relative to cwd, and
+        # mixes those with --out-dir internally (Path.relative_to), so passing
+        # an absolute --out-dir while cwd is build_dir raises "different
+        # anchors". Keep it relative, matched to cwd=build_dir, to avoid that.
+        subprocess.run(
+            ["./src/cursor_utils.py", "--hypr", "--theme", target,
+             "--out-dir", "out", "--log-level", "error"],
+            cwd=build_dir, check=True,
+        )
 
-    install_dir = Path.home() / f".local/share/icons/{CURSOR_NAME}"
-    shutil.rmtree(install_dir, ignore_errors=True)
-    shutil.copytree(build_dir / "out" / target, install_dir)
-    (install_dir / "index.theme").write_text(
-        "[Icon Theme]\n"
-        f"Name={CURSOR_NAME}\n"
-        "Comment=Bibata cursor recolored to the active Omarchy theme\n"
-        "Inherits=Adwaita\n"
-    )
-    shutil.rmtree(build_dir, ignore_errors=True)
+        install_dir = Path.home() / f".local/share/icons/{CURSOR_NAME}"
+        shutil.rmtree(install_dir, ignore_errors=True)
+        shutil.copytree(build_dir / "out" / target, install_dir)
+        (install_dir / "index.theme").write_text(
+            "[Icon Theme]\n"
+            f"Name={CURSOR_NAME}\n"
+            "Comment=Bibata cursor recolored to the active Omarchy theme\n"
+            "Inherits=Adwaita\n"
+        )
+        shutil.rmtree(build_dir, ignore_errors=True)
 
-    subprocess.run(["hyprctl", "setcursor", CURSOR_NAME, CURSOR_SIZE], check=True)
-    print(f"cursor-accent: applied {CURSOR_NAME} ({target}) at size {CURSOR_SIZE}")
+        # Runtime-only: Hyprland forgets this on restart, and with no
+        # HYPRCURSOR_THEME set it boots with whichever theme directory
+        # hyprcursor finds first. The post-boot hook re-runs this script.
+        subprocess.run(["hyprctl", "setcursor", CURSOR_NAME, CURSOR_SIZE], check=True)
+        print(f"cursor-accent: applied {CURSOR_NAME} ({target}) at size {CURSOR_SIZE}")
 
 
 if __name__ == "__main__":

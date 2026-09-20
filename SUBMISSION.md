@@ -34,12 +34,13 @@ dependency). No matugen, no new runtime dependency beyond Python (already
 required, stdlib tomllib needs >=3.11).
 
 Ships as a `service`-kind plugin with no UI of its own; the actual
-recoloring is a theme-set hook (a documented Omarchy extension point), opt-in
-via a bundled installer script, same as this author's other plugins. A
-second opt-in script adds an optional "Style > Cursor" point-and-click menu,
-since service-kind plugins have no `omarchy bar set` equivalent to configure
-from. Also supports locking to one fixed color, reverting to the system
-default cursor, and choosing between two Bibata pointer shapes.
+recoloring is a pair of theme-set and post-boot hooks (documented Omarchy
+extension points), opt-in via a bundled installer script, same as this
+author's other plugins. A second opt-in script adds an optional "Style >
+Cursor" point-and-click menu, since service-kind plugins have no `omarchy
+bar set` equivalent to configure from. Also supports locking to one fixed
+color, reverting to the system default cursor, and choosing between two
+Bibata pointer shapes.
 
 GPL-3.0-or-later, not MIT like this author's other plugins: it vendors
 src/svg/config from rtgiskard/bibata_cursor (GPL-3.0-or-later, pinned

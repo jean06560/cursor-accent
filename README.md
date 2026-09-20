@@ -18,21 +18,33 @@ omarchy plugin add https://github.com/SmoothPixels/cursor-accent.git --enable
 ```
 
 Installing the plugin alone does nothing visible yet: it only ships the
-mechanism (`recolor.py`) and a one-time startup apply. Following the theme is
-opt-in, run once yourself:
+mechanism (`recolor.py`) and, while the plugin is enabled, a one-time apply
+each time the shell loads it. Following the theme is opt-in, run once
+yourself:
 
 ```sh
 # Follow the active theme automatically from now on, on every `omarchy theme set`
 ~/.config/omarchy/plugins/io.github.smoothpixels.cursor-accent/tools/install-cursor-hook.sh
 ```
 
-This generates and installs a `theme-set` hook (`omarchy hook install
-theme-set ...`), a documented Omarchy extension point that runs on every
-`omarchy theme set`, and applies the current theme's colors immediately. It's
-generated rather than a static file because `omarchy-hook-install` copies the
-hook into `~/.config/omarchy/hooks/theme-set.d/`, not a symlink, so it needs
-this plugin's real install path baked in. Nothing else in this plugin touches
-your configuration on its own.
+This generates and installs two hooks through `omarchy hook install`, both
+documented Omarchy extension points, and applies the current theme's colors
+immediately:
+
+- `theme-set` runs on every `omarchy theme set` and recolors the cursor to
+  the new theme.
+- `post-boot` runs once per login and re-applies it. `hyprctl setcursor` only
+  lasts for the running compositor, and Omarchy sets no `HYPRCURSOR_THEME`,
+  so without this hook Hyprland starts with whichever theme directory
+  hyprcursor finds first under `~/.local/share/icons`, which is not
+  necessarily this one.
+
+The hooks are generated rather than shipped as static files because
+`omarchy-hook-install` copies them into `~/.config/omarchy/hooks/<type>.d/`,
+not a symlink, so they need this plugin's real install path baked in. If you
+set up an earlier version that only installed the `theme-set` hook, re-run
+the script once to add the `post-boot` one. Nothing else in this plugin
+touches your configuration on its own.
 
 ## Settings
 
@@ -87,7 +99,7 @@ by hand.
 ## Remove
 
 ```sh
-rm -f ~/.config/omarchy/hooks/theme-set.d/theme-set-hook.sh
+rm -f ~/.config/omarchy/hooks/{theme-set,post-boot}.d/cursor-accent.sh
 rm -rf ~/.local/share/icons/Omarchy-Accent ~/.local/state/cursor-accent
 hyprctl setcursor default 24               # or your preferred size
 omarchy plugin remove io.github.smoothpixels.cursor-accent
