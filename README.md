@@ -18,24 +18,20 @@ omarchy plugin add https://github.com/SmoothPixels/cursor-accent.git --enable
 ```
 
 Installing the plugin alone does nothing visible yet: it only ships the
-mechanism (`recolor.py`) and a one-time startup apply. The two features that
-make it useful are both opt-in, run once yourself:
+mechanism (`recolor.py`) and a one-time startup apply. Following the theme is
+opt-in, run once yourself:
 
 ```sh
 # Follow the active theme automatically from now on, on every `omarchy theme set`
 ~/.config/omarchy/plugins/io.github.smoothpixels.cursor-accent/tools/install-cursor-hook.sh
-
-# Optional: a "Style > Cursor" menu, since there's no settings-form GUI yet
-~/.config/omarchy/plugins/io.github.smoothpixels.cursor-accent/tools/install-menu-entries.sh
 ```
 
-The first command generates and installs a `theme-set` hook (`omarchy hook
-install theme-set ...`), a documented Omarchy extension point that runs on
-every `omarchy theme set`, and applies the current theme's colors
-immediately. It's generated rather than a static file because
-`omarchy-hook-install` copies the hook into
-`~/.config/omarchy/hooks/theme-set.d/`, not a symlink, so it needs this
-plugin's real install path baked in. Nothing else in this plugin touches
+This generates and installs a `theme-set` hook (`omarchy hook install
+theme-set ...`), a documented Omarchy extension point that runs on every
+`omarchy theme set`, and applies the current theme's colors immediately. It's
+generated rather than a static file because `omarchy-hook-install` copies the
+hook into `~/.config/omarchy/hooks/theme-set.d/`, not a symlink, so it needs
+this plugin's real install path baked in. Nothing else in this plugin touches
 your configuration on its own.
 
 ## Settings
@@ -43,7 +39,7 @@ your configuration on its own.
 There's no settings-form GUI for plugins in Omarchy yet, and unlike
 bar-widgets, `service`-kind plugins like this one have no `omarchy bar set`
 equivalent at all. Configuration is the bundled `cursor-accent` command, or
-the optional menu above:
+the optional menu below:
 
 ```sh
 ~/.config/omarchy/plugins/io.github.smoothpixels.cursor-accent/cursor-accent follow
@@ -65,6 +61,29 @@ the optional menu above:
 Your choice is stored in `~/.local/state/cursor-accent/config.json`, outside
 the plugin's own directory, so `omarchy plugin update` never resets it.
 
+## Optional: a real menu picker
+
+There's no settings-form GUI for plugins in Omarchy yet, so if you'd rather
+click through a menu than type `cursor-accent` commands, this ships a
+ready-made "Style → Cursor" submenu: a checkable row per mode and shape, plus
+"Fixed Color..." to prompt for a hex value.
+
+![Style > Cursor submenu, with Follow Theme and Modern checked](assets/menu-picker.png)
+
+It's opt-in: nothing in this plugin writes to your menu config on its own,
+since a plugin silently editing your files on install is exactly what the
+marketplace review checklist asks authors *not* to do. Install it yourself:
+
+```sh
+~/.config/omarchy/plugins/io.github.smoothpixels.cursor-accent/tools/install-menu-entries.sh
+```
+
+This splices `extensions/omarchy-menu.snippet.jsonc` into your own
+`~/.config/omarchy/extensions/omarchy-menu.jsonc` (creating it if missing).
+The shell watches that file, so it applies within a second or two, no restart
+needed. To remove it later, delete the `"style.cursor*"` block from that file
+by hand.
+
 ## Remove
 
 ```sh
@@ -73,10 +92,6 @@ rm -rf ~/.local/share/icons/Omarchy-Accent ~/.local/state/cursor-accent
 hyprctl setcursor default 24               # or your preferred size
 omarchy plugin remove io.github.smoothpixels.cursor-accent
 ```
-
-Delete the `"style.cursor*"` block from
-`~/.config/omarchy/extensions/omarchy-menu.jsonc` by hand if you installed
-the menu.
 
 ## Development
 
