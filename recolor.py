@@ -30,6 +30,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import tomllib
 from pathlib import Path
 
@@ -67,6 +68,25 @@ def load_theme_colors():
     body = c.get("foreground", background)
     watch = c.get("darker_background") or background
     return body, accent, watch
+
+
+def apply_cursor(cursor_name):
+    subprocess.run(["hyprctl", "setcursor", cursor_name, CURSOR_SIZE], check=True)
+    # Hyprland keeps drawing the old pointer image until the pointer is hidden
+    # and shown again (setcursor alone does not redraw it, and moving within
+    # the same window does not either). A key press hides it at once
+    # (cursor:hide_on_key_press), then re-issuing the current position shows
+    # it again, which forces the new theme to be drawn. Best effort: never
+    # fail the recolor over this.
+    try:
+        subprocess.run(["wtype", "-k", "F24"], capture_output=True)
+        time.sleep(0.05)
+        pos = subprocess.run(["hyprctl", "cursorpos"], capture_output=True,
+                             text=True, check=True).stdout.replace(",", " ").split()
+        subprocess.run(["hyprctl", "dispatch", "movecursor", pos[0], pos[1]],
+                       capture_output=True, check=True)
+    except (subprocess.CalledProcessError, IndexError, OSError):
+        pass
 
 
 def main():
@@ -132,18 +152,12 @@ def main():
             cwd=build_dir, check=True,
         )
 
-        # Alternate between two theme names: re-selecting the same name is a
-        # no-op for Hyprland and its clients, which keep their cached pointer
-        # until they next gain focus. A new name makes every client reload.
-        last = (STATE_DIR / "active-name").read_text().strip() if (STATE_DIR / "active-name").exists() else ""
-        cursor_name = f"{CURSOR_NAME}-B" if last == f"{CURSOR_NAME}-A" else f"{CURSOR_NAME}-A"
-        (STATE_DIR / "active-name").write_text(cursor_name)
-        install_dir = Path.home() / f".local/share/icons/{cursor_name}"
+        install_dir = Path.home() / f".local/share/icons/{CURSOR_NAME}"
         shutil.rmtree(install_dir, ignore_errors=True)
         shutil.copytree(build_dir / "out" / target, install_dir)
         (install_dir / "index.theme").write_text(
             "[Icon Theme]\n"
-            f"Name={cursor_name}\n"
+            f"Name={CURSOR_NAME}\n"
             "Comment=Bibata cursor recolored to the active Omarchy theme\n"
             "Inherits=Adwaita\n"
         )
@@ -152,18 +166,8 @@ def main():
         # Runtime-only: Hyprland forgets this on restart, and with no
         # HYPRCURSOR_THEME set it boots with whichever theme directory
         # hyprcursor finds first. The post-boot hook re-runs this script.
-        subprocess.run(["hyprctl", "setcursor", cursor_name, CURSOR_SIZE], check=True)
-        # Hyprland keeps drawing the old pointer image until the cursor next
-        # moves or changes surface. Re-issuing the current position forces an
-        # immediate redraw (best effort: never fail the recolor over this).
-        try:
-            pos = subprocess.run(["hyprctl", "cursorpos"], capture_output=True,
-                                 text=True, check=True).stdout.replace(",", " ").split()
-            subprocess.run(["hyprctl", "dispatch", "movecursor", pos[0], pos[1]],
-                           capture_output=True, check=True)
-        except (subprocess.CalledProcessError, IndexError, OSError):
-            pass
-        print(f"cursor-accent: applied {cursor_name} ({target}) at size {CURSOR_SIZE}")
+        apply_cursor(CURSOR_NAME)
+        print(f"cursor-accent: applied {CURSOR_NAME} ({target}) at size {CURSOR_SIZE}")
 
 
 if __name__ == "__main__":
