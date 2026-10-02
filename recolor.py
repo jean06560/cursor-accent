@@ -3,7 +3,7 @@
 
 Colors come from one of three modes, read from config.json:
   "theme" (default): follow the active Omarchy theme's colors.toml
-    body   <- dark_background / background
+    body   <- foreground
     accent <- accent
     watch  <- darker_background / background
   "fixed": always use config.json's fixed_color for the outline, ignoring
@@ -61,8 +61,11 @@ def load_theme_colors():
     with COLORS_PATH.open("rb") as f:
         c = tomllib.load(f)
     accent = c.get("accent", "#F25623")
-    body = c.get("dark_background") or c.get("background") or "#171717"
-    watch = c.get("darker_background") or c.get("background") or body
+    background = c.get("background", "#171717")
+    # foreground is the theme's text color, so themes already keep it readable
+    # against the background (dark on light themes, light on dark ones).
+    body = c.get("foreground", background)
+    watch = c.get("darker_background") or background
     return body, accent, watch
 
 
@@ -129,12 +132,18 @@ def main():
             cwd=build_dir, check=True,
         )
 
-        install_dir = Path.home() / f".local/share/icons/{CURSOR_NAME}"
+        # Alternate between two theme names: re-selecting the same name is a
+        # no-op for Hyprland and its clients, which keep their cached pointer
+        # until they next gain focus. A new name makes every client reload.
+        last = (STATE_DIR / "active-name").read_text().strip() if (STATE_DIR / "active-name").exists() else ""
+        cursor_name = f"{CURSOR_NAME}-B" if last == f"{CURSOR_NAME}-A" else f"{CURSOR_NAME}-A"
+        (STATE_DIR / "active-name").write_text(cursor_name)
+        install_dir = Path.home() / f".local/share/icons/{cursor_name}"
         shutil.rmtree(install_dir, ignore_errors=True)
         shutil.copytree(build_dir / "out" / target, install_dir)
         (install_dir / "index.theme").write_text(
             "[Icon Theme]\n"
-            f"Name={CURSOR_NAME}\n"
+            f"Name={cursor_name}\n"
             "Comment=Bibata cursor recolored to the active Omarchy theme\n"
             "Inherits=Adwaita\n"
         )
@@ -143,8 +152,18 @@ def main():
         # Runtime-only: Hyprland forgets this on restart, and with no
         # HYPRCURSOR_THEME set it boots with whichever theme directory
         # hyprcursor finds first. The post-boot hook re-runs this script.
-        subprocess.run(["hyprctl", "setcursor", CURSOR_NAME, CURSOR_SIZE], check=True)
-        print(f"cursor-accent: applied {CURSOR_NAME} ({target}) at size {CURSOR_SIZE}")
+        subprocess.run(["hyprctl", "setcursor", cursor_name, CURSOR_SIZE], check=True)
+        # Hyprland keeps drawing the old pointer image until the cursor next
+        # moves or changes surface. Re-issuing the current position forces an
+        # immediate redraw (best effort: never fail the recolor over this).
+        try:
+            pos = subprocess.run(["hyprctl", "cursorpos"], capture_output=True,
+                                 text=True, check=True).stdout.replace(",", " ").split()
+            subprocess.run(["hyprctl", "dispatch", "movecursor", pos[0], pos[1]],
+                           capture_output=True, check=True)
+        except (subprocess.CalledProcessError, IndexError, OSError):
+            pass
+        print(f"cursor-accent: applied {cursor_name} ({target}) at size {CURSOR_SIZE}")
 
 
 if __name__ == "__main__":
