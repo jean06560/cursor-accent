@@ -2,10 +2,12 @@
 
 ## 1.2.0 (2026-10-02)
 
-- The pointer body now uses the theme's `foreground` instead of
-  `dark_background`, which some themes don't define. The body then blended
-  into the background; `foreground` contrasts with it by design. The outline
-  still follows the theme's accent.
+- The pointer body is now the theme's accent, and the outline is black or
+  white, whichever contrasts more with the accent. The body used
+  `dark_background`, which some themes don't define, so it blended into the
+  background. The accent/outline pair now always contrasts by at least
+  4.5:1, so one of the two stays visible over any background, such as a
+  video. The `fixed` color becomes the body, with the same outline rule.
 - The new color is drawn immediately. `hyprctl setcursor` reloads the theme
   but Hyprland keeps the old image until the pointer is hidden and shown
   again, so the color only changed after hovering another window. After
